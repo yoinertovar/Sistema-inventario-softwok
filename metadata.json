@@ -1,0 +1,6 @@
+{
+  "name": "Inventory and POS System",
+  "description": "An elegant, comprehensive full-stack inventory and point-of-sale system, supporting role-based access control (Admin, Worker), payroll calculation, credits, expenses, and automated receipt generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

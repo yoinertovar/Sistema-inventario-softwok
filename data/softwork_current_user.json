@@ -1,0 +1,22 @@
+{
+  "id": "usr-1785441909227",
+  "name": "yoiner",
+  "email": "yoiner@local.soft",
+  "role": "WORKER",
+  "permissions": [
+    "view_inventory",
+    "view_clients",
+    "access_pos",
+    "view_expenses",
+    "view_payroll",
+    "manage_returns",
+    "view_users",
+    "view_suppliers",
+    "view_credits",
+    "close_cash_register"
+  ],
+  "active": true,
+  "baseSalary": 1300000,
+  "commissionRate": 2,
+  "phone": "32011121213"
+}
