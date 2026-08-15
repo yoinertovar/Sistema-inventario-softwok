@@ -1,166 +1,130 @@
 import { readJSON, writeJSON } from "./storage.service";
-import { addAuditLog } from "./auditLog.service";
+import { getToken } from "./auth.service";
 
 export interface Client {
   id: string;
   name: string;
-  nitOrCc: string; // ID Card or NIT
+  nitOrCc: string;
   phone: string;
   email: string;
   address: string;
-  creditLimit: number; // Max amount they can borrow
-  creditBalance: number; // Current debt they owe us
+  creditLimit: number;
+  creditBalance: number;
   active: boolean;
+  isDefault?: boolean;
   createdAt: string;
 }
 
 const CLIENTS_KEY = "softwork_clients";
 
-const DEFAULT_CLIENTS: Client[] = [
-  {
-    id: "cli-consumidor",
-    name: "Consumidor Final (Público General)",
-    nitOrCc: "222222222222",
-    phone: "N/A",
-    email: "consumidor@softwork.co",
-    address: "Ventas de Mostrador",
-    creditLimit: 0,
-    creditBalance: 0,
-    active: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "cli-juan",
-    name: "Juan Fernando Pérez",
-    nitOrCc: "1015432876",
-    phone: "3154448899",
-    email: "juan.perez@gmail.com",
-    address: "Calle 100 # 15 - 89, Bogotá",
-    creditLimit: 800000, // $800.000 limit
-    creditBalance: 155000, // owes $155.000
-    active: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "cli-distribuidora",
-    name: "Comercializadora DistriNorte S.A.S.",
-    nitOrCc: "900.555.123-4",
-    phone: "3206781234",
-    email: "facturacion@distrinorte.co",
-    address: "Zona Industrial Alamos, Bodega 4",
-    creditLimit: 4000000,
-    creditBalance: 1250000,
-    active: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "cli-maria",
-    name: "María Camila Gómez",
-    nitOrCc: "52432876",
-    phone: "3182223344",
-    email: "camila.gomez@yahoo.com",
-    address: "Carrera 7 # 45 - 20, Apt 502",
-    creditLimit: 300000,
-    creditBalance: 0, // perfect record
-    active: true,
-    createdAt: new Date().toISOString(),
-  },
-];
-
 /**
- * Gets all clients.
+ * Consultar clientes desde PostgreSQL
  */
-export const getClients = (): Client[] => {
-  const clients = readJSON<Client[]>(CLIENTS_KEY, []);
-  if (clients.length === 0) {
-    writeJSON(CLIENTS_KEY, DEFAULT_CLIENTS);
-    return DEFAULT_CLIENTS;
+export const fetchClients = async (): Promise<Client[]> => {
+  try {
+    const res = await fetch("/api/clients", {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      writeJSON(CLIENTS_KEY, data);
+      return data;
+    }
+  } catch (error) {
+    console.warn("Fallo de red al consultar clientes en PG:", error);
   }
-  return clients;
+  return readJSON<Client[]>(CLIENTS_KEY, []);
 };
 
 /**
- * Saves all clients.
+ * Crear o actualizar cliente en PostgreSQL
  */
-export const saveClients = (clients: Client[]): void => {
-  writeJSON(CLIENTS_KEY, clients);
-};
+export const upsertClient = async (client: Partial<Client> & { id?: string }): Promise<Client> => {
+  const isUpdate = !!client.id && !client.id.startsWith("cli-");
+  const url = isUpdate ? `/api/clients/${client.id}` : "/api/clients";
+  const method = isUpdate ? "PUT" : "POST";
 
-/**
- * Creates or updates a client.
- */
-export const upsertClient = (client: Client): Client => {
-  const clients = getClients();
-  const index = clients.findIndex((c) => c.id === client.id);
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`
+    },
+    body: JSON.stringify({
+      name: client.name,
+      nitOrCc: client.nitOrCc,
+      phone: client.phone,
+      email: client.email,
+      address: client.address,
+      creditLimit: client.creditLimit,
+      active: client.active ?? true
+    })
+  });
 
-  if (index >= 0) {
-    const prev = clients[index];
-    clients[index] = { ...clients[index], ...client };
-
-    addAuditLog({
-      userId: "admin@softwork.co",
-      userName: "Administrador / Operador",
-      userRole: "ADMIN",
-      category: "USER_MANAGEMENT",
-      severity: "INFO",
-      action: "ACTUALIZAR_CLIENTE",
-      entityId: client.id,
-      entityName: client.name,
-      details: `Información del cliente "${client.name}" (${client.nitOrCc}) actualizada (Límite Crédito: $${client.creditLimit.toLocaleString("es-CO")}).`,
-      previousState: `Límite: $${prev.creditLimit} COP`,
-      newState: `Límite: $${client.creditLimit} COP`
-    });
-  } else {
-    client.id = client.id || `cli-${Date.now()}`;
-    client.createdAt = client.createdAt || new Date().toISOString();
-    clients.push(client);
-
-    addAuditLog({
-      userId: "admin@softwork.co",
-      userName: "Administrador / Operador",
-      userRole: "ADMIN",
-      category: "USER_MANAGEMENT",
-      severity: "INFO",
-      action: "CREAR_CLIENTE",
-      entityId: client.id,
-      entityName: client.name,
-      details: `Nuevo cliente comercial "${client.name}" (NIT/CC: ${client.nitOrCc}) registrado.`,
-      newState: "Cliente Creado"
-    });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || "Error al guardar cliente en la base de datos.");
   }
 
-  saveClients(clients);
-  return client;
+  await fetchClients();
+  return data.client;
 };
 
 /**
- * Deletes a client.
+ * Eliminar / Desactivar cliente
  */
 export const deleteClient = (id: string): boolean => {
-  if (id === "cli-consumidor") return false; // cannot delete general public
+  if (id === "cli-consumidor") return false;
   const clients = getClients();
-  const targetClient = clients.find((c) => c.id === id);
   const filtered = clients.filter((c) => c.id !== id);
-
   if (filtered.length !== clients.length) {
     saveClients(filtered);
-
-    // Critical Audit Log for Client Deletion
-    addAuditLog({
-      userId: "admin@softwork.co",
-      userName: "Administrador General",
-      userRole: "ADMIN",
-      category: "ENTRY_DELETE",
-      severity: "CRITICAL",
-      action: "ELIMINAR_CLIENTE",
-      entityId: id,
-      entityName: targetClient?.name || `Cliente ${id}`,
-      details: `Eliminación permanente del registro de cliente "${targetClient?.name || id}" (NIT/CC: ${targetClient?.nitOrCc}).`,
-      previousState: targetClient ? `Cliente: ${targetClient.name} (${targetClient.nitOrCc})` : undefined,
-      newState: "Registro Eliminado"
-    });
-
+    deleteClientApi(id).catch(console.error);
     return true;
   }
   return false;
 };
+
+export const deleteClientApi = async (id: string): Promise<boolean> => {
+  try {
+    const res = await fetch(`/api/clients/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${getToken()}`
+      },
+      body: JSON.stringify({ active: false })
+    });
+    if (res.ok) {
+      await fetchClients();
+      return true;
+    }
+  } catch (error) {
+    console.error("Error al desactivar cliente en PG:", error);
+  }
+  return false;
+};
+
+/**
+ * Registrar abono a crédito en PostgreSQL
+ */
+export const processCreditPayment = async (clientId: string, amount: number, paymentMethod: string = "CASH", notes?: string): Promise<void> => {
+  const res = await fetch(`/api/clients/${clientId}/credit-payment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`
+    },
+    body: JSON.stringify({ amount, paymentMethod, notes })
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    throw new Error(data.message || "Error al registrar el abono a crédito.");
+  }
+
+  await fetchClients();
+};
+
+export const getClients = (): Client[] => readJSON<Client[]>(CLIENTS_KEY, []);
+export const saveClients = (clients: Client[]): void => writeJSON(CLIENTS_KEY, clients);

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ade5c4a8-df19-425b-b111-528e221f911f",
+    "name": "Alquer¡a de Colombia S.A.",
+    "nit": "860.005.432-1",
+    "phone": "3104561234",
+    "email": "ventas@alqueria.co",
+    "address": "Km 5 V¡a Ch¡a, Cundinamarca",
+    "active": true,
+    "createdAt": "2026-08-13T03:18:13.308Z"
+  },
+  {
+    "id": "b34509da-83b9-49ec-ba90-6ab9d3a8325e",
+    "name": "Distribuidora Nacional de Granos",
+    "nit": "900.222.111-9",
+    "phone": "3185559876",
+    "email": "pedidos@gricol.com",
+    "address": "Carrera 30 # 12 - 45, Bogot ",
+    "active": true,
+    "createdAt": "2026-08-13T03:18:13.308Z"
+  },
+  {
+    "id": "70499398-4c62-4e37-8db5-7fdb928c9db4",
+    "name": "Insumos y Accesorios del Caribe",
+    "nit": "890.333.555-4",
+    "phone": "3158882244",
+    "email": "contacto@iacaribe.co",
+    "address": "V¡a 40 # 70 - 12, Barranquilla",
+    "active": true,
+    "createdAt": "2026-08-13T03:18:13.308Z"
+  }
+]

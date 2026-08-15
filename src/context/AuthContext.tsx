@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { login, logout, verifyToken, UserSession } from "../services/auth.service";
 import { subscribeToRealtimeStorage } from "../services/storage.service";
 import {
@@ -54,23 +54,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
     window.addEventListener("softwork_diagnostic_update", handleDiagnosticUpdate);
 
-    // Subscribe to cross-tab and in-window real-time storage events
+    // Subscribe to cross-tab and in-window real-time storage events.
+    // IMPORTANT: Only listen to "softwork_users" changes (admin editing users).
+    // Do NOT listen to "softwork_current_user" here — refreshSession() writes to it,
+    // which would trigger this listener again, creating an infinite loop.
     const unsubscribeRealtime = subscribeToRealtimeStorage((key) => {
-      if (key === "softwork_users" || key === "softwork_current_user") {
+      if (key === "softwork_users") {
         refreshSession();
       }
     });
-    
-    // Periodically run token verification as a safety fallback
+
+    // Periodically run token verification as a safety fallback (every 30s is sufficient)
     const intervalId = setInterval(() => {
       if (localStorage.getItem("softwork_current_user")) {
         refreshSession();
       }
-    }, 1500);
+    }, 30000);
 
-    // Also listen to browser storage events directly for window sync
+    // Also listen to browser storage events directly for cross-tab sync.
+    // Only react to user database changes, not session changes.
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "softwork_users" || e.key === "softwork_current_user") {
+      if (e.key === "softwork_users") {
         refreshSession();
       }
     };
@@ -109,9 +113,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [user?.id, user?.role]);
 
+  const prevPermissionsRef = useRef<string>("");
   useEffect(() => {
     // If user's specific permissions changed, log it and run verification
-    if (user) {
+    const currentPerms = JSON.stringify(user?.permissions || []);
+    if (user && prevPermissionsRef.current && prevPermissionsRef.current !== currentPerms) {
       addDiagnosticLog({
         userId: user.email,
         userName: user.name,
@@ -122,7 +128,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         type: "INFO",
       });
     }
-  }, [JSON.stringify(user?.permissions)]);
+    prevPermissionsRef.current = currentPerms;
+  }, [user?.permissions]);
 
   const initializeAuth = async () => {
     try {
@@ -143,7 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoading(true);
     try {
       const session = await login(email, password);
-      
+
       addDiagnosticLog({
         userId: session.email,
         userName: session.name,
@@ -192,7 +199,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const refreshSession = async () => {
     try {
       const session = await verifyToken();
-      
+
       setUser((currentUser) => {
         // Only update user state if there is a real difference in values
         if (JSON.stringify(session) !== JSON.stringify(currentUser)) {

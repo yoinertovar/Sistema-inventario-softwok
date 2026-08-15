@@ -1,0 +1,43 @@
+[
+  {
+    "id": "FC-1001",
+    "invoiceNumber": "INV-998877",
+    "supplierId": "sup-1",
+    "supplierName": "Alquería de Colombia S.A.",
+    "items": [
+      {
+        "productId": "prod-1",
+        "name": "Arroz Diana Florhuila Premium 1kg",
+        "qty": 100,
+        "purchasePrice": 3200,
+        "total": 320000
+      }
+    ],
+    "total": 320000,
+    "createdAt": "2026-07-28T13:30:00.000Z"
+  },
+  {
+    "id": "FC-1002",
+    "invoiceNumber": "FC-4455-A",
+    "supplierId": "sup-2",
+    "supplierName": "Distribuidora Nacional de Granos",
+    "items": [
+      {
+        "productId": "prod-2",
+        "name": "Aceite Gourmet Multiusos 1L",
+        "qty": 50,
+        "purchasePrice": 9500,
+        "total": 475000
+      },
+      {
+        "productId": "prod-3",
+        "name": "Café Sello Rojo 500g",
+        "qty": 60,
+        "purchasePrice": 8200,
+        "total": 492000
+      }
+    ],
+    "total": 967000,
+    "createdAt": "2026-07-30T15:00:00.000Z"
+  }
+]

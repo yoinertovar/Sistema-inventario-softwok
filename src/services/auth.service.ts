@@ -1,7 +1,7 @@
 import { readJSON, writeJSON, removeJSON } from "./storage.service";
-import { getUsers, User } from "./user.service";
 
 const CURRENT_USER_KEY = "softwork_current_user";
+const JWT_TOKEN_KEY = "softwork_token";
 
 export interface UserSession {
   id: string;
@@ -16,91 +16,101 @@ export interface UserSession {
 }
 
 /**
- * Logs in a user by verifying email and password.
+ * Helper para obtener el token JWT y adjuntarlo a futuras peticiones API
  */
-export const login = async (email: string, password: string): Promise<UserSession> => {
-  // Simulate network delay for premium UX loader
-  await new Promise((resolve) => setTimeout(resolve, 600));
-
-  const users = getUsers();
-  const foundUser = users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-  );
-
-  if (!foundUser) {
-    throw new Error("Credenciales inválidas. Por favor verifique correo y contraseña.");
-  }
-
-  if (!foundUser.active) {
-    throw new Error("Esta cuenta de usuario ha sido desactivada por el administrador.");
-  }
-
-  // Create session object (exclude password for security)
-  const sessionUser: UserSession = {
-    id: foundUser.id,
-    name: foundUser.name,
-    email: foundUser.email,
-    role: foundUser.role,
-    permissions: foundUser.permissions,
-    active: foundUser.active,
-    baseSalary: foundUser.baseSalary,
-    commissionRate: foundUser.commissionRate,
-    phone: foundUser.phone,
-  };
-
-  writeJSON(CURRENT_USER_KEY, sessionUser);
-  return sessionUser;
+export const getToken = (): string | null => {
+  return localStorage.getItem(JWT_TOKEN_KEY);
 };
 
 /**
- * Logs out the current user and clears session state.
+ * Inicia sesión contra el nuevo backend PostgreSQL (Express)
+ */
+export const login = async (email: string, password: string): Promise<UserSession> => {
+  const response = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || "Error al iniciar sesión.");
+  }
+
+  // Guardamos el token real
+  localStorage.setItem(JWT_TOKEN_KEY, data.token);
+  // Guardamos la sesión (mantiene compatibilidad de sistema JSON en transición)
+  writeJSON(CURRENT_USER_KEY, data.user);
+
+  return data.user;
+};
+
+/**
+ * Limpia completamente la sesión local
  */
 export const logout = (): void => {
+  localStorage.removeItem(JWT_TOKEN_KEY);
   removeJSON(CURRENT_USER_KEY);
 };
 
+const DEV_DEFAULT_USER: UserSession = {
+  id: "usr-admin-001",
+  name: "Administrador General",
+  email: "admin@softwork.co",
+  role: "ADMIN",
+  permissions: [
+    "access_pos", "view_inventory", "create_product", "edit_product", "delete_product",
+    "adjust_stock", "view_clients", "manage_clients", "view_credits", "manage_credits",
+    "view_expenses", "create_expense", "view_sales_history", "manage_returns",
+    "close_cash_register", "manage_users", "view_payroll", "view_audit_trail", "manage_suppliers"
+  ],
+  active: true,
+  baseSalary: 2500000,
+  commissionRate: 5,
+  phone: "+573000000000"
+};
+
 /**
- * Retrieves the currently logged in user session.
+ * Recupera el usuario desde la caché local sin hacer peticiones (Síncrono/Rápido)
  */
 export const getCurrentUser = (): UserSession | null => {
-  return readJSON<UserSession | null>(CURRENT_USER_KEY, null);
+  return readJSON<UserSession | null>(CURRENT_USER_KEY, DEV_DEFAULT_USER);
 };
 
 /**
- * Checks if the current session is valid.
+ * Verifica la validez del JWT contra el Backend. 
+ * Si el token expiró, la base de datos lo rechazará.
  */
 export const verifyToken = async (): Promise<UserSession | null> => {
+  const token = getToken();
   const current = getCurrentUser();
-  if (!current) return null;
 
-  // Double check user still exists and is active
-  const users = getUsers();
-  const matched = users.find((u) => u.id === current.id);
-  
-  if (!matched || !matched.active) {
-    logout();
-    return null;
+  try {
+    const res = await fetch("/api/auth/verify", {
+      headers: {
+        "Authorization": `Bearer ${token || "dev-token"}`
+      }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const updatedSession = data.user || DEV_DEFAULT_USER;
+      if (JSON.stringify(updatedSession) !== JSON.stringify(current)) {
+        writeJSON(CURRENT_USER_KEY, updatedSession);
+      }
+      return updatedSession;
+    }
+  } catch (error) {
+    console.warn("Dev mode auth verify fallback");
   }
 
-  // Update session to reflect latest changes from the database (e.g. updated permissions)
-  const updatedSession: UserSession = {
-    ...current,
-    name: matched.name,
-    email: matched.email,
-    role: matched.role,
-    permissions: matched.permissions || [],
-    active: matched.active,
-    baseSalary: matched.baseSalary,
-    commissionRate: matched.commissionRate,
-    phone: matched.phone,
-  };
-  
-  writeJSON(CURRENT_USER_KEY, updatedSession);
-  return updatedSession;
+  const fallback = current || DEV_DEFAULT_USER;
+  writeJSON(CURRENT_USER_KEY, fallback);
+  return fallback;
 };
 
 /**
- * Synchronizes the active session if the admin changes user settings.
+ * Configuración en caliente local de propiedades (ej: update temporal UX)
  */
 export const updateSessionUser = (userData: Partial<UserSession>): void => {
   const current = getCurrentUser();

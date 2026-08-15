@@ -1,0 +1,26 @@
+[
+  {
+    "id": "d60149d2-4920-43cb-a4d2-46af9d25cda7",
+    "name": "Alimentos y Abarrotes",
+    "description": "Productos de consumo diario, granos, aceites y v¡veres",
+    "active": true
+  },
+  {
+    "id": "35129ea8-da80-4abb-a363-b9112e675448",
+    "name": "Bebidas",
+    "description": "Gaseosas, refrescos, aguas y jugos embotellados",
+    "active": true
+  },
+  {
+    "id": "d896ac40-2e3d-460c-8b2a-6a8d7ec6d88d",
+    "name": "Ferreter¡a y El‚ctricos",
+    "description": "Herramientas, bombillos, cables el‚ctricos y repuestos",
+    "active": true
+  },
+  {
+    "id": "16eb93cf-80b6-4ee1-a4d3-b25310d82312",
+    "name": "Tecnolog¡a",
+    "description": "Perif‚ricos, cables, accesorios de c¢mputo y oficina",
+    "active": true
+  }
+]

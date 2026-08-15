@@ -23,7 +23,7 @@ export const readJSON = <T>(key: string, fallback: T): T => {
 export const writeJSON = <T>(key: string, value: T): void => {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-    
+
     // Dispatch local custom DOM event for instant same-window reaction
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("softwork_storage_update", { detail: { key, value } }));
@@ -55,7 +55,7 @@ export const writeJSON = <T>(key: string, value: T): void => {
 export const removeJSON = (key: string): void => {
   try {
     localStorage.removeItem(key);
-    
+
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("softwork_storage_update", { detail: { key, value: null } }));
     }
@@ -79,7 +79,7 @@ export const removeJSON = (key: string): void => {
  * Listens to real-time storage updates from other tabs or local writes.
  */
 export const subscribeToRealtimeStorage = (callback: (key: string, value: any) => void) => {
-  if (typeof window === "undefined") return () => {};
+  if (typeof window === "undefined") return () => { };
 
   // Local DOM event handler
   const handleCustomEvent = (e: Event) => {
@@ -116,21 +116,28 @@ export const subscribeToRealtimeStorage = (callback: (key: string, value: any) =
 };
 
 /**
- * Synchronizes and loads all persistent JSON files from the Node.js server storage into LocalStorage.
+ * Synchronizes and loads all persistent data from PostgreSQL database into application memory.
  */
 export const syncFromServer = async (): Promise<boolean> => {
   try {
-    const res = await fetch("/api/storage");
-    if (!res.ok) throw new Error("Server storage response not OK");
-    const data = await res.json();
-    
-    // Populate localStorage with all keys stored on the Node.js server
-    Object.entries(data).forEach(([key, value]) => {
-      localStorage.setItem(key, JSON.stringify(value));
-    });
+    const { fetchProducts, fetchCategories } = await import("./product.service");
+    const { fetchClients } = await import("./client.service");
+    const { fetchInvoices, fetchSuppliers, fetchExpenses } = await import("./invoice.service");
+    const { fetchUsers } = await import("./user.service");
+
+    await Promise.allSettled([
+      fetchProducts(),
+      fetchCategories(),
+      fetchClients(),
+      fetchInvoices(),
+      fetchSuppliers(),
+      fetchExpenses(),
+      fetchUsers()
+    ]);
     return true;
   } catch (error) {
-    console.warn("Could not sync storage from Node.js server:", error);
+    console.warn("Could not sync storage from Node.js PostgreSQL backend:", error);
     return false;
   }
 };
+

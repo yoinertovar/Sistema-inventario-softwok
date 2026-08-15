@@ -1,0 +1,28 @@
+[
+  {
+    "id": "aba548b2-1781-436a-8f5b-36d2bdfc877f",
+    "name": "Consumidor Final (P£blico General)",
+    "nitOrCc": "222222222222",
+    "phone": "N/A",
+    "email": "consumidor@softwork.co",
+    "address": "Ventas de Mostrador",
+    "creditLimit": 0,
+    "creditBalance": 0,
+    "active": true,
+    "isDefault": true,
+    "createdAt": "2026-08-13T03:18:13.172Z"
+  },
+  {
+    "id": "98230698-ab21-45f3-905d-2b555f8fc4a0",
+    "name": "Camilo",
+    "nitOrCc": "123456",
+    "phone": "31034523",
+    "email": "camilo@goku.com",
+    "address": "Chupun dun",
+    "creditLimit": 115000,
+    "creditBalance": 0,
+    "active": true,
+    "isDefault": false,
+    "createdAt": "2026-08-15T03:56:26.623Z"
+  }
+]

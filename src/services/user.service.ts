@@ -1,6 +1,5 @@
 import { readJSON, writeJSON } from "./storage.service";
-import { ROLES } from "../shared/constants";
-import { PERMISSIONS } from "../permissions/PermissionConstants";
+import { getToken } from "./auth.service";
 
 export interface User {
   id: string;
@@ -10,106 +9,87 @@ export interface User {
   role: "ADMIN" | "WORKER";
   permissions: string[];
   active: boolean;
-  baseSalary: number; // monthly base salary
-  commissionRate: number; // e.g. 0.02 for 2% commission on sales
+  baseSalary: number;
+  commissionRate: number;
   phone: string;
   createdAt: string;
 }
 
 const USERS_KEY = "softwork_users";
 
-// Default seed users if none exist
-const DEFAULT_USERS: User[] = [
-  {
-    id: "usr-admin",
-    name: "Administrador General",
-    email: "admin@softwork.co",
-    password: "admin",
-    role: "ADMIN",
-    permissions: Object.values(PERMISSIONS), // Admin gets all permissions
-    active: true,
-    baseSalary: 2500000, // $2.500.000 COP
-    commissionRate: 0,
-    phone: "3001234567",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "usr-cajero",
-    name: "Carlos Cajero (Vendedor)",
-    email: "cajero@softwork.co",
-    password: "cajero",
-    role: "WORKER",
-    permissions: [
-      PERMISSIONS.VIEW_INVENTORY,
-      PERMISSIONS.VIEW_CLIENTS,
-      PERMISSIONS.CREATE_CLIENT,
-      PERMISSIONS.EDIT_CLIENT,
-      PERMISSIONS.VIEW_CREDITS,
-      PERMISSIONS.PROCESS_CREDIT_PAYMENT,
-      PERMISSIONS.ACCESS_POS,
-      PERMISSIONS.CLOSE_CASH_REGISTER,
-      PERMISSIONS.VIEW_SALES_HISTORY,
-    ],
-    active: true,
-    baseSalary: 1300000, // $1.300.000 COP (SMMLV aprox)
-    commissionRate: 0.02, // 2% sales commission
-    phone: "3119876543",
-    createdAt: new Date().toISOString(),
-  },
-];
-
 /**
- * Gets all users from localStorage.
+ * Obtener todos los usuarios desde la base de datos PostgreSQL
  */
-export const getUsers = (): User[] => {
-  const users = readJSON<User[]>(USERS_KEY, []);
-  if (users.length === 0) {
-    writeJSON(USERS_KEY, DEFAULT_USERS);
-    return DEFAULT_USERS;
+export const fetchUsers = async (): Promise<User[]> => {
+  try {
+    const res = await fetch("/api/users", {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      writeJSON(USERS_KEY, data);
+      return data;
+    }
+  } catch (error) {
+    console.warn("Fallo al obtener usuarios desde PG:", error);
   }
-  return users;
+  return readJSON<User[]>(USERS_KEY, []);
 };
 
 /**
- * Persists user array.
+ * Crear o actualizar usuario en PostgreSQL
  */
-export const saveUsers = (users: User[]): void => {
-  writeJSON(USERS_KEY, users);
-};
+export const upsertUser = async (user: Partial<User> & { id?: string }): Promise<User> => {
+  const isUpdate = !!user.id && !user.id.startsWith("usr-");
+  const url = isUpdate ? `/api/users/${user.id}` : "/api/users";
+  const method = isUpdate ? "PUT" : "POST";
 
-/**
- * Creates or updates a user.
- */
-export const upsertUser = (user: User): User => {
-  const users = getUsers();
-  const index = users.findIndex((u) => u.id === user.id);
-  
-  if (index >= 0) {
-    // Preserve password if not specified
-    const existing = users[index];
-    user.password = user.password || existing.password;
-    users[index] = { ...existing, ...user };
-  } else {
-    // New user
-    user.id = user.id || `usr-${Date.now()}`;
-    user.createdAt = user.createdAt || new Date().toISOString();
-    user.password = user.password || "123456"; // default pwd
-    users.push(user);
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`
+    },
+    body: JSON.stringify({
+      name: user.name,
+      email: user.email,
+      password: user.password,
+      role: user.role,
+      active: user.active ?? true,
+      baseSalary: user.baseSalary,
+      commissionRate: user.commissionRate,
+      phone: user.phone,
+      permissions: user.permissions
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || "Error al guardar el usuario en PostgreSQL.");
   }
-  
-  saveUsers(users);
-  return user;
+
+  await fetchUsers();
+  return data.user;
 };
 
 /**
- * Deletes a user.
+ * Desactivar o eliminar usuario en PostgreSQL
  */
-export const deleteUser = (id: string): boolean => {
-  const users = getUsers();
-  const filtered = users.filter((u) => u.id !== id);
-  if (filtered.length !== users.length) {
-    saveUsers(filtered);
-    return true;
+export const deleteUser = async (id: string): Promise<boolean> => {
+  try {
+    const res = await fetch(`/api/users/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    if (res.ok) {
+      await fetchUsers();
+      return true;
+    }
+  } catch (error) {
+    console.error("Error al eliminar usuario en PG:", error);
   }
   return false;
 };
+
+export const getUsers = (): User[] => readJSON<User[]>(USERS_KEY, []);
+export const saveUsers = (users: User[]): void => writeJSON(USERS_KEY, users);
